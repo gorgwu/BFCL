@@ -24,6 +24,7 @@ from bfcl_eval.model_handler.api_inference.openai_completion import (
     OpenAICompletionsHandler,
 )
 from bfcl_eval.model_handler.api_inference.openai_response import OpenAIResponsesHandler
+from bfcl_eval.model_handler.api_inference.jiuwenswarm import JiuwenSwarmHandler
 from bfcl_eval.model_handler.api_inference.qwen import (
     QwenAgentNoThinkHandler,
     QwenAgentThinkHandler,
@@ -2234,6 +2235,17 @@ MODEL_CONFIG_MAPPING = {
     **api_inference_model_map,
     **local_inference_model_map,
     **third_party_inference_model_map,
+    "jiuwenswarm-system1-FC": ModelConfig(
+        model_name="jiuwenswarm-system1",
+        display_name="JiuwenSwarm System 1 (FC)",
+        url="https://github.com/openJiuwen-ai/jiuwenswarm",
+        org="JiuwenSwarm benchmark integration",
+        license="Apache-2.0",
+        model_handler=JiuwenSwarmHandler,
+        input_price=None,
+        output_price=None,
+        is_fc_model=True,
+    ),
 }
 
 # Uncomment to get the supported_models.py file contents

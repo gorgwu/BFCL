@@ -1,5 +1,6 @@
 import argparse
 import heapq
+import json
 import multiprocessing as mp
 import os
 import queue
@@ -356,6 +357,86 @@ def generate_results(args, model_name, test_cases_total):
             handler.shutdown_local_server()
 
 
+def write_jiuwenswarm_usage_summary(result_dir, model_name):
+    """Write experiment-wide totals from JiuwenSwarm per-case metadata."""
+    if model_name != "jiuwenswarm-system1-FC":
+        return
+
+    model_result_dir = result_dir / model_name.replace("/", "_")
+    component_names = ("deepseek", "jev", "other_agent_models", "total")
+    totals = {
+        name: {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "cost_usd": 0.0,
+            "cost_reported_request_count": 0,
+            "request_count": 0,
+            "models": [],
+        }
+        for name in component_names
+    }
+    cost_seen = {name: False for name in component_names}
+    backend_counts = defaultdict(int)
+    case_count = 0
+
+    if model_result_dir.exists():
+        for result_file in model_result_dir.rglob(RESULT_FILE_PATTERN):
+            for entry in load_file(result_file):
+                usage_by_component = entry.get("conversation_model_usage")
+                if not isinstance(usage_by_component, dict):
+                    continue
+                case_count += 1
+                backend = (
+                    entry.get("jiuwenswarm", {}).get("tool_discovery_backend")
+                    if isinstance(entry.get("jiuwenswarm"), dict)
+                    else None
+                )
+                if backend:
+                    backend_counts[str(backend)] += 1
+                for name in component_names:
+                    component = usage_by_component.get(name)
+                    if not isinstance(component, dict):
+                        continue
+                    target = totals[name]
+                    for field in ("input_tokens", "output_tokens", "total_tokens"):
+                        target[field] += int(component.get(field) or 0)
+                    target["request_count"] += int(component.get("request_count") or 0)
+                    reported = int(component.get("cost_reported_request_count") or 0)
+                    target["cost_reported_request_count"] += reported
+                    if reported:
+                        cost_seen[name] = True
+                        target["cost_usd"] += float(component.get("cost_usd") or 0.0)
+                    for model in component.get("models", []):
+                        if model not in target["models"]:
+                            target["models"].append(model)
+
+    for name, total in totals.items():
+        if not cost_seen[name]:
+            total["cost_usd"] = None
+        total["cost_complete"] = (
+            total["request_count"] > 0
+            and total["cost_reported_request_count"] == total["request_count"]
+        )
+
+    model_result_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = model_result_dir / "usage_summary.json"
+    with summary_path.open("w", encoding="utf-8") as summary_file:
+        json.dump(
+            {
+                "model": model_name,
+                "cases": case_count,
+                "tool_discovery_backend_case_counts": dict(backend_counts),
+                "usage": totals,
+            },
+            summary_file,
+            ensure_ascii=False,
+            indent=2,
+        )
+        summary_file.write("\n")
+    tqdm.write(f"Wrote JiuwenSwarm usage totals to {summary_path}")
+
+
 def main(args):
 
     # Note: The following environment variables are needed for the memory vector store implementation
@@ -421,3 +502,4 @@ def main(args):
             # Sort the result files by id at the end
             for model_result_json in args.result_dir.rglob(RESULT_FILE_PATTERN):
                 sort_file_content_by_id(model_result_json)
+        write_jiuwenswarm_usage_summary(args.result_dir, model_name)

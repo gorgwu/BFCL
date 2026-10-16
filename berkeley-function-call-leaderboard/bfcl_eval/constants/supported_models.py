@@ -13,6 +13,7 @@
 # -----------------------------------------------------------------------------
 
 SUPPORTED_MODELS = [
+    "jiuwenswarm-system1-FC",
     "gorilla-openfunctions-v2",
     "DeepSeek-V3.2-Exp",
     "DeepSeek-V3.2-Exp-FC",

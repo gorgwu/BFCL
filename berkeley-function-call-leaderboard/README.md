@@ -338,6 +338,49 @@ We welcome contributions! To add a new model:
 
 For detailed steps, please see the [Contributing Guide](./CONTRIBUTING.md).
 
+## JiuwenSwarm System 1 Integration
+
+The `jiuwenswarm-system1-FC` handler runs BFCL cases through the normal JiuwenSwarm
+agent runtime. BFCL function schemas become deferred tools, JiuwenSwarm's
+ProgressiveToolRail performs System 1 discovery, and multi-turn/agentic tool
+calls execute against BFCL's simulator before BFCL's evaluator scores the result.
+This is an integration benchmark and is not a BFCL leaderboard submission.
+
+Install BFCL and JiuwenSwarm with their runtime dependencies in the same Python
+environment. The default path assumes `BFCL`, `jiuwenswarm`, and `agent-core` are
+sibling directories; set `BFCL_JIUWENSWARM_ROOT` and `BFCL_AGENT_CORE_ROOT` if
+your checkout layout differs. In JiuwenSwarm's config, enable
+`progressive_tool_enabled` and set `tool_discovery_backend` to `bm25`, `jev`,
+or `local`. Configure the model and, for `jev`/`local`, discovery credentials
+and endpoints as described by JiuwenSwarm. To compare backends, run the same
+category once per backend and give each run a different `--result-dir`; change
+the backend in JiuwenSwarm's config between runs. Keep the agent model, test
+category, and other settings the same.
+
+For example, run the BFCL V3 multi-turn categories from this directory:
+
+```bash
+bfcl generate --model jiuwenswarm-system1-FC --test-category multi_turn --num-threads 1 --include-input-log --result-dir result/jiuwenswarm-jev
+bfcl evaluate --model jiuwenswarm-system1-FC --test-category multi_turn --result-dir result/jiuwenswarm-jev
+```
+
+For a BM25 comparison, set `tool_discovery_backend: bm25` and use a separate
+result directory, for example `result/jiuwenswarm-bm25`. Use `local` similarly
+with `result/jiuwenswarm-local`. These runs measure each router's effect on the
+same BFCL tasks; they do not compare the same tool-retrieval metric used by
+MTRB.
+
+Use `--test-category all_scoring` for all scoring categories. BFCL's web-search
+cases also require the search API configuration documented above. The adapter
+records end-to-end per-turn latency and provider usage. Each result includes
+per-turn and conversation totals split into `deepseek`, `jev`, and combined
+`total` usage. OpenRouter-reported USD costs are included when available, and
+`cost_complete` indicates whether every request in that component reported a
+cost. JEV usage is read from the Decisions API response. Generation also writes
+an experiment-wide `usage_summary.json` inside the model's result directory.
+Each case records System 1's selected tools and whether the runtime fell back
+to BM25, so fallback cases can be separated during analysis.
+
 ---
 
 ## Additional Resources
