@@ -1,17 +1,26 @@
 from tree_sitter import Language, Parser
 import tree_sitter_javascript
 
-JS_LANGUAGE = Language(tree_sitter_javascript.language(), "javascript")
+try:
+    JS_LANGUAGE = Language(tree_sitter_javascript.language())
+except TypeError:
+    # tree-sitter <=0.21 required the language name; >=0.22 reads it from
+    # the grammar capsule.
+    JS_LANGUAGE = Language(tree_sitter_javascript.language(), "javascript")
 
-parser = Parser()
-parser.set_language(JS_LANGUAGE)
+try:
+    parser = Parser(JS_LANGUAGE)
+except TypeError:
+    parser = Parser()
+    parser.set_language(JS_LANGUAGE)
 
 
 def parse_javascript_function_call(source_code):
     # Parse the source code
     tree = parser.parse(bytes(source_code, "utf8"))
     root_node = tree.root_node
-    sexp_result = root_node.sexp()
+    sexp = getattr(root_node, "sexp", None)
+    sexp_result = sexp() if callable(sexp) else str(root_node)
     if "ERROR" in sexp_result:
         raise SyntaxError("Error js parsing the source code.")
 

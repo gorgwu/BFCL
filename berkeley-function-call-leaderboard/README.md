@@ -346,10 +346,19 @@ ProgressiveToolRail performs System 1 discovery, and multi-turn/agentic tool
 calls execute against BFCL's simulator before BFCL's evaluator scores the result.
 This is an integration benchmark and is not a BFCL leaderboard submission.
 
-Install BFCL and JiuwenSwarm with their runtime dependencies in the same Python
-environment. The default path assumes `BFCL`, `jiuwenswarm`, and `agent-core` are
-sibling directories; set `BFCL_JIUWENSWARM_ROOT` and `BFCL_AGENT_CORE_ROOT` if
-your checkout layout differs. In JiuwenSwarm's config, enable
+On Windows, activate a Python 3.11, 3.12, or 3.13 virtual environment from this
+directory and install the combined runtime dependency set with:
+
+```powershell
+.\scripts\install_jiuwenswarm_bfcl.ps1
+```
+
+The installer uses JiuwenSwarm's checked-in `uv.lock`, skips its fixed remote
+OpenJiuwen package, then installs the checked-out `agent-core` and BFCL projects.
+BFCL's Java and JavaScript parsers support the `tree-sitter` 0.25 API required by
+OpenJiuwen. The default checkout layout assumes `BFCL`, `jiuwenswarm`, and
+`agent-core` are sibling directories; set `BFCL_JIUWENSWARM_ROOT` and
+`BFCL_AGENT_CORE_ROOT` if your checkout layout differs. In JiuwenSwarm's config, enable
 `progressive_tool_enabled` and set `tool_discovery_backend` to `bm25`, `jev`,
 or `local`. Configure the model and, for `jev`/`local`, discovery credentials
 and endpoints as described by JiuwenSwarm. To compare backends, run the same
@@ -380,6 +389,22 @@ cost. JEV usage is read from the Decisions API response. Generation also writes
 an experiment-wide `usage_summary.json` inside the model's result directory.
 Each case records System 1's selected tools and whether the runtime fell back
 to BM25, so fallback cases can be separated during analysis.
+
+After generating and evaluating both backend runs, create a combined text report:
+
+```powershell
+python .\scripts\report_jiuwenswarm_bfcl.py `
+  --jev-result-dir result/jiuwenswarm-jev `
+  --bm25-result-dir result/jiuwenswarm-bm25 `
+  --output result/jiuwenswarm-bfcl-report.txt
+```
+
+The script expects matching score directories under `score/` by default. Pass
+`--jev-score-dir` or `--bm25-score-dir` if you used different score paths. The
+report includes accuracy by category, measured conversation latency statistics
+and per-case/per-turn details, provider token and reported cost totals, and
+recorded discovery backend counts. Generate and evaluate each run before
+reporting to include both accuracy and usage totals.
 
 ---
 

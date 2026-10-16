@@ -325,6 +325,9 @@ def generate_results(args, model_name, test_cases_total):
                     # Update progress bar right after inference completes
                     pbar.update()
                     completed.add(test_case_id)
+                    tqdm.write(
+                        f"Completed {len(completed)}/{len(test_cases_total)}: {test_case_id}"
+                    )
 
                     # unlock children
                     for child_id in children_of[test_case_id]:

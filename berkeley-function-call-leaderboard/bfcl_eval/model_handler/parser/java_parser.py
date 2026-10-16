@@ -1,16 +1,25 @@
 from tree_sitter import Language, Parser
 import tree_sitter_java
 
-JAVA_LANGUAGE = Language(tree_sitter_java.language(), "java")
+try:
+    JAVA_LANGUAGE = Language(tree_sitter_java.language())
+except TypeError:
+    # tree-sitter <=0.21 required the language name; >=0.22 reads it from
+    # the grammar capsule.
+    JAVA_LANGUAGE = Language(tree_sitter_java.language(), "java")
 
-parser = Parser()
-parser.set_language(JAVA_LANGUAGE)
+try:
+    parser = Parser(JAVA_LANGUAGE)
+except TypeError:
+    parser = Parser()
+    parser.set_language(JAVA_LANGUAGE)
 
 
 def parse_java_function_call(source_code):
     tree = parser.parse(bytes(source_code, "utf8"))
     root_node = tree.root_node
-    sexp_result = root_node.sexp()
+    sexp = getattr(root_node, "sexp", None)
+    sexp_result = sexp() if callable(sexp) else str(root_node)
 
     if "ERROR" in sexp_result:
         raise SyntaxError("Error parsing java the source code.")
