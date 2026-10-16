@@ -366,7 +366,7 @@ def write_jiuwenswarm_usage_summary(result_dir, model_name):
         return
 
     model_result_dir = result_dir / model_name.replace("/", "_")
-    component_names = ("deepseek", "jev", "other_agent_models", "total")
+    component_names = ("deepseek", "jev", "laya_local", "other_agent_models", "total")
     totals = {
         name: {
             "input_tokens": 0,

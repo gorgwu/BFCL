@@ -153,7 +153,7 @@ def report_run(label: str, result_dir: Path, score_dir: Path) -> tuple[list[str]
         lines.append("Recorded discovery backend counts: " + ", ".join(f"{key}={value}" for key, value in sorted(backend_counts.items())))
 
     if usage:
-        lines.append("Provider usage and reported cost:")
+        lines.append("OpenRouter/provider usage and reported cost:")
         for component in ("deepseek", "jev", "other_agent_models", "total"):
             item = usage.get(component)
             if not isinstance(item, dict):
@@ -168,19 +168,43 @@ def report_run(label: str, result_dir: Path, score_dir: Path) -> tuple[list[str]
                 f"cost {cost_text} ({completeness}); requests {int(item.get('request_count') or 0):,}; "
                 f"models: {', '.join(item.get('models') or []) or 'N/A'}"
             )
+        local_laya = usage.get("laya_local")
+        if isinstance(local_laya, dict):
+            lines.append(
+                "Local Laya usage (Laya tokenizer; not OpenRouter tokens or cost): "
+                f"{int(local_laya.get('input_tokens') or 0):,} input + "
+                f"{int(local_laya.get('output_tokens') or 0):,} output = "
+                f"{int(local_laya.get('total_tokens') or 0):,} local tokens; "
+                f"decision requests {int(local_laya.get('request_count') or 0):,}; "
+                f"cost N/A (local model)"
+            )
     else:
         lines.append("Provider usage/cost summary not found; rerun generation or check per-case result metadata.")
 
-    lines.append("Per-case latency and tokens:")
+    lines.append("Per-case latency and token usage (provider and local counts are separate):")
     if not cases:
         lines.append("  No generated result entries found.")
     for case in cases:
         usage_total = case["usage"].get("total", {}) if isinstance(case["usage"], dict) else {}
         tok = usage_total.get("total_tokens") if isinstance(usage_total, dict) else None
-        lines.append(f"  {case['id']}: {fmt(case['latency'])} s, {fmt(tok, 0)} tokens, backend={case['backend'] or 'unknown'}")
+        laya_usage = case["usage"].get("laya_local", {}) if isinstance(case["usage"], dict) else {}
+        laya_tok = laya_usage.get("total_tokens") if isinstance(laya_usage, dict) else None
+        lines.append(
+            f"  {case['id']}: {fmt(case['latency'])} s, "
+            f"{fmt(tok, 0)} provider/OpenRouter tokens, "
+            f"{fmt(laya_tok, 0)} Laya-local tokens, backend={case['backend'] or 'unknown'}"
+        )
         for turn in case["turns"]:
             if isinstance(turn, dict):
-                lines.append(f"    turn {turn.get('turn', '?')}: {fmt(number(turn.get('latency_seconds')))} s, {fmt(number(turn.get('total_tokens')), 0)} tokens")
+                turn_usage = turn.get("model_usage") or {}
+                provider_turn = turn_usage.get("total", {}) if isinstance(turn_usage, dict) else {}
+                laya_turn = turn_usage.get("laya_local", {}) if isinstance(turn_usage, dict) else {}
+                lines.append(
+                    f"    turn {turn.get('turn', '?')}: "
+                    f"{fmt(number(turn.get('latency_seconds')))} s, "
+                    f"{fmt(number(provider_turn.get('total_tokens')), 0)} provider tokens, "
+                    f"{fmt(number(laya_turn.get('total_tokens')), 0)} Laya-local tokens"
+                )
     lines.append("")
     return lines, bool(cases or total)
 
@@ -189,24 +213,29 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--jev-result-dir", type=Path, default=Path("result/jiuwenswarm-jev"))
     parser.add_argument("--bm25-result-dir", type=Path, default=Path("result/jiuwenswarm-bm25"))
+    parser.add_argument("--laya-result-dir", type=Path, default=Path("result/jiuwenswarm-laya"))
     parser.add_argument("--jev-score-dir", type=Path)
     parser.add_argument("--bm25-score-dir", type=Path)
+    parser.add_argument("--laya-score-dir", type=Path)
     parser.add_argument("--output", type=Path, default=Path("jiuwenswarm_bfcl_report.txt"))
     args = parser.parse_args()
 
     jev_score = args.jev_score_dir or Path("score") / args.jev_result_dir.name
     bm25_score = args.bm25_score_dir or Path("score") / args.bm25_result_dir.name
+    laya_score = args.laya_score_dir or Path("score") / args.laya_result_dir.name
     lines = [
         "JiuwenSwarm BFCL comparison report",
         "Generated from BFCL result and score files.",
         "Conversation latency is adapter-measured turn time; it excludes some benchmark setup, evaluation, and file-writing overhead.",
         "Reported costs come from model/provider usage metadata and may be incomplete; check the completeness label.",
+        "Laya token counts use Laya's local tokenizer and are reported separately; they are not OpenRouter usage and have no provider token cost.",
         "",
     ]
     found_any = False
     for label, result_dir, score_dir in (
         ("JEV", args.jev_result_dir, jev_score),
         ("BM25", args.bm25_result_dir, bm25_score),
+        ("Laya", args.laya_result_dir, laya_score),
     ):
         section, found = report_run(label, result_dir, score_dir)
         lines.extend(section)

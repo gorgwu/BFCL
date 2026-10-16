@@ -288,6 +288,7 @@ class JiuwenSwarmHandler(BaseHandler):
         selected_by_turn: list[list[str]] = []
         fallback_by_turn: list[bool] = []
         current_jev_usage: list[dict[str, Any]] = []
+        current_laya_usage: list[dict[str, Any]] = []
         model_usage_by_turn: list[dict[str, Any]] = []
         current_calls: list[dict[str, Any]] = []
         current_tokens = {"input": 0, "output": 0}
@@ -361,6 +362,8 @@ class JiuwenSwarmHandler(BaseHandler):
                     f"Expected one ProgressiveToolRail, found {len(rails)}."
                 )
             rail = rails[0]
+            if discovery == "local":
+                rail._usage_callback = lambda usage: current_laya_usage.append(dict(usage))
             rail._rebuild_tool_search_index(session_adapter._instance)
 
             # Fail closed if runtime setup reintroduced unrelated tools or if
@@ -514,6 +517,7 @@ class JiuwenSwarmHandler(BaseHandler):
                 current_calls = []
                 current_tokens = {"input": 0, "output": 0}
                 current_jev_usage = []
+                current_laya_usage = []
                 detailed_model_usage: list[dict[str, Any]] = []
                 summary_model_usage: list[dict[str, Any]] = []
                 query = _message_text(messages)
@@ -578,12 +582,22 @@ class JiuwenSwarmHandler(BaseHandler):
                     for raw in current_jev_usage
                     if (record := _usage_record(raw)) is not None
                 ])
+                laya_records = []
+                for raw in current_laya_usage:
+                    record = _usage_record(raw, "laya-local")
+                    if record is not None:
+                        # These are counts from Laya's own tokenizer and local
+                        # inference, not provider/OpenRouter usage or cost.
+                        record["cost_usd"] = None
+                        laya_records.append(record)
+                laya_local_usage = _sum_component_usage(laya_records)
                 all_usage = _total_component_usage(
                     deepseek_usage, other_agent_usage, jev_usage
                 )
                 model_usage_by_turn.append({
                     "deepseek": deepseek_usage,
                     "jev": jev_usage,
+                    "laya_local": laya_local_usage,
                     "other_agent_models": other_agent_usage,
                     "total": all_usage,
                 })
@@ -626,6 +640,7 @@ class JiuwenSwarmHandler(BaseHandler):
             component_names = (
                 "deepseek",
                 "jev",
+                "laya_local",
                 "other_agent_models",
                 "total",
             )

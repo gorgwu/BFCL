@@ -388,23 +388,29 @@ per-turn and conversation totals split into `deepseek`, `jev`, and combined
 cost. JEV usage is read from the Decisions API response. Generation also writes
 an experiment-wide `usage_summary.json` inside the model's result directory.
 Each case records System 1's selected tools and whether the runtime fell back
-to BM25, so fallback cases can be separated during analysis.
+to BM25, so fallback cases can be separated during analysis. For the `local`
+backend, BFCL also records Laya's own input-token usage as `laya_local`. Those
+counts use Laya's tokenizer and are reported separately from OpenRouter/provider
+tokens; do not add them together as if they were a common token measure. Laya
+does not generate text tokens, and its local usage has no OpenRouter token cost.
 
-After generating and evaluating both backend runs, create a combined text report:
+After generating and evaluating the backend runs, create a combined text report:
 
 ```powershell
 python .\scripts\report_jiuwenswarm_bfcl.py `
   --jev-result-dir result/jiuwenswarm-jev `
   --bm25-result-dir result/jiuwenswarm-bm25 `
+  --laya-result-dir result/jiuwenswarm-laya `
   --output result/jiuwenswarm-bfcl-report.txt
 ```
 
 The script expects matching score directories under `score/` by default. Pass
-`--jev-score-dir` or `--bm25-score-dir` if you used different score paths. The
-report includes accuracy by category, measured conversation latency statistics
-and per-case/per-turn details, provider token and reported cost totals, and
-recorded discovery backend counts. Generate and evaluate each run before
-reporting to include both accuracy and usage totals.
+`--jev-score-dir`, `--bm25-score-dir`, or `--laya-score-dir` if you used
+different score paths. The report includes accuracy by category, measured
+conversation latency statistics and per-case/per-turn details, provider token
+and reported cost totals, separate Laya-local token counts, and recorded
+discovery backend counts. Generate and evaluate each run before reporting to
+include accuracy and usage totals.
 
 ---
 
